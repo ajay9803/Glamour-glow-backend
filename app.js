@@ -42,7 +42,7 @@ app.use((error, req, res, next) => {
 });
 
 app.use("/images", express.static(path.join(__dirname, "/images")));
-let messages = ['test'];
+let messages = ["test"];
 
 mongoose
   .connect(databaseUrl)

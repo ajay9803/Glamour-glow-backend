@@ -72,7 +72,7 @@ exports.fetchUserPayments = async (req, res, next) => {
 
       const year = theDate.getFullYear();
       const month = (theDate.getMonth() + 1).toString().padStart(2, "0");
-      const day = (theDate.getDate() - 1).toString().padStart(2, "0");
+      const day = theDate.getDate().toString().padStart(2, "0");
 
       const formattedDate = `${year}-${month}-${day}`;
       console.log(formattedDate);

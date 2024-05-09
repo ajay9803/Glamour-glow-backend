@@ -7,7 +7,7 @@ const BeautyProduct = require("../models/product");
 exports.getProductsByCategory = async (req, res, next) => {
   const category = req.params.category;
   const currentPage = req.query.page || 1;
-  const perPage = 6;
+  const perPage = 12;
   try {
     let sortOptions = {};
 
@@ -276,6 +276,32 @@ exports.updateProduct = async (req, res, next) => {
     res.status(200).json({
       message: "Product updated successfully.",
       product: updatedProduct,
+    });
+  } catch (e) {
+    if (!e.statusCode) {
+      e.statusCode = 500;
+    }
+    next(e);
+  }
+};
+
+exports.searchProduct = async (req, res, next) => {
+  try {
+    const productName = req.query.name;
+
+    const products = await BeautyProduct.find({
+      name: { $regex: productName, $options: "i" },
+    });
+
+    if (!products || products.length === 0) {
+      const error = new Error("No products found.");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    res.status(200).json({
+      message: "Search products fetched successfully.",
+      products: products,
     });
   } catch (e) {
     if (!e.statusCode) {
