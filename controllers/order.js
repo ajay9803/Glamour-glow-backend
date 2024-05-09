@@ -44,9 +44,11 @@ exports.createOrder = async (req, res, next) => {
       totalPrice,
       totalItems,
       paid: false,
+      status: 0,
     });
 
     const order = await newOrder.save();
+
     await Promise.all(
       order.orderItems.map(async (orderItem) => {
         const product = await Product.findById(orderItem.productId);
@@ -78,7 +80,6 @@ exports.createOrder = async (req, res, next) => {
           product.quantityAvailable =
             product.quantityAvailable - orderItem.quantity;
           const theProduct = await product.save();
-          console.log(theProduct._id);
           user.orderedItems.push({ productId: theProduct._id });
           await user.save();
         }
@@ -98,11 +99,9 @@ exports.createOrder = async (req, res, next) => {
 };
 
 exports.fetchUserOrders = async (req, res, next) => {
-  console.log("fetchUserOrders");
   const currentPage = req.query.page || 1;
   const perPage = 6;
   const { filterBy, date } = req.query;
-  console.log(date);
 
   try {
     let sortOptions = {};
@@ -126,22 +125,24 @@ exports.fetchUserOrders = async (req, res, next) => {
       default:
         break;
     }
-    console.log("date here");
-    console.log(new Date(date));
-    console.log("date here");
 
     if (date) {
-      // const parsedDate = new Date(date);
-      // const theDate = parsedDate.toISOString();
-      // filterOptions.createdAt = {
-      //   $gte: new Date(parsedDate).setHours(0, 0, 0, 0),
-      //   $lt: new Date(parsedDate).setHours(23, 59, 59, 999),
-      // };
+      const theDate = new Date(date);
+
+      const year = theDate.getFullYear();
+      const month = (theDate.getMonth() + 1).toString().padStart(2, "0");
+      const day = (theDate.getDate() - 1).toString().padStart(2, "0");
+
+      const formattedDate = `${year}-${month}-${day}`;
+      console.log(formattedDate);
+
+      filterOptions.createdAt = {
+        $gte: new Date(`${formattedDate}T00:00:00.000Z`),
+        $lt: new Date(`${formattedDate}T23:59:59.999Z`),
+      };
     }
 
     const userId = req.userId;
-    console.log(userId);
-    console.log(filterOptions);
 
     let totalItems = await Order.find({
       userId: userId,
@@ -155,8 +156,6 @@ exports.fetchUserOrders = async (req, res, next) => {
       .sort(sortOptions)
       .skip((currentPage - 1) * perPage)
       .limit(perPage);
-
-    console.log(orders);
 
     if (!orders || orders.length === 0) {
       const error = new Error("No orders found.");
@@ -206,28 +205,32 @@ exports.fetchOrderHistory = async (req, res, next) => {
     }
 
     if (date) {
-      const startOfDay = new Date(date);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(date);
-      endOfDay.setHours(23, 59, 59, 999);
+      const theDate = new Date(date);
+
+      const year = theDate.getFullYear();
+      const month = (theDate.getMonth() + 1).toString().padStart(2, "0");
+      const day = (theDate.getDate() - 1).toString().padStart(2, "0");
+
+      const formattedDate = `${year}-${month}-${day}`;
+      console.log(formattedDate);
+
       filterOptions.createdAt = {
-        $gte: startOfDay,
-        $lte: endOfDay,
+        $gte: new Date(`${formattedDate}T00:00:00.000Z`),
+        $lt: new Date(`${formattedDate}T23:59:59.999Z`),
       };
     }
 
-    const userId = req.userId;
-
     let totalItems = await Order.find({
-      // ...filterOptions,
+      ...filterOptions,
     }).countDocuments();
 
     const orders = await Order.find({
-      // ...filterOptions
+      ...filterOptions,
     })
       .sort(sortOptions)
       .skip((currentPage - 1) * perPage)
-      .limit(perPage);
+      .limit(perPage)
+      .populate("userId");
 
     if (!orders || orders.length === 0) {
       const error = new Error("No orders found.");
@@ -235,29 +238,9 @@ exports.fetchOrderHistory = async (req, res, next) => {
       throw error;
     }
 
-    let orderUserDetails = [];
-
-    await Promise.all(
-      orders.map(async (order) => {
-        const userId = order.userId;
-        console.log(order);
-
-        const user = await User.findById(userId);
-        if (!user) {
-          const error = new Error("Failed to fetch User.");
-          error.statusCode = 404;
-          throw error;
-        }
-        orderUserDetails.push({
-          order: order,
-          user: user,
-        });
-      })
-    );
-
     res.status(200).json({
       message: "Orders fetched successfully.",
-      orders: orderUserDetails,
+      orders: orders,
       totalItems: totalItems,
     });
   } catch (e) {
@@ -272,7 +255,9 @@ exports.fetchOrderById = async (req, res, next) => {
   try {
     const orderId = req.params.orderId;
 
-    const order = await Order.findById(orderId);
+    const order = await Order.findById(orderId).populate(
+      "orderItems.productId"
+    );
 
     if (!order) {
       const error = new Error("Order fetch failed.");
@@ -288,30 +273,10 @@ exports.fetchOrderById = async (req, res, next) => {
       throw error;
     }
 
-    let orderItems = [];
-
-    await Promise.all(
-      order.orderItems.map(async (orderItem) => {
-        const product = await Product.findById(orderItem.productId);
-        if (!product) {
-          const error = new Error("Failed to fetch order product.");
-          error.statusCode = 404;
-          throw error;
-        } else {
-          orderItems.push({
-            ...orderItem.toObject(),
-            product: product.toObject(),
-            user: user,
-          });
-        }
-      })
-    );
-
     res.status(200).json({
       message: "Order fetched successfully.",
       order: order,
       user: user,
-      orderItems: orderItems,
     });
   } catch (e) {
     if (!e.statusCode) {
@@ -331,9 +296,63 @@ exports.makePayment = async (req, res, next) => {
       throw error;
     }
     order.paid = true;
+    order.status = 1;
+    order.statusDetails.paymentMade.value = true;
+    order.statusDetails.paymentMade.date = new Date();
     const updatedOrder = await order.save();
     res.status(200).json({
       message: "Payment made successfully.",
+      order: updatedOrder,
+    });
+
+    res.status();
+  } catch (e) {
+    if (!e.statusCode) {
+      e.statusCode = 500;
+    }
+    next(e);
+  }
+};
+
+exports.updateOrderStatus = async (req, res, next) => {
+  try {
+    if (req.status !== "admin") {
+      const error = new Error("Forbidden request.");
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const orderId = req.params.orderId;
+    const { status } = req.body;
+    console.log(orderId, status);
+    const order = await Order.findById(orderId);
+    if (!order) {
+      const error = new Error("No order found.");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    switch (status) {
+      case 2:
+        order.statusDetails.processing.value = true;
+        order.statusDetails.processing.date = new Date();
+        break;
+      case 3:
+        order.statusDetails.shipped.value = true;
+        order.statusDetails.shipped.date = new Date();
+        break;
+      case 4:
+        order.statusDetails.delivered.value = true;
+        order.statusDetails.delivered.date = new Date();
+        break;
+      default:
+        break;
+    }
+    order.status = status;
+
+    const updatedOrder = await order.save();
+    res.status(200).json({
+      message: "Order status updated successfully.",
       order: updatedOrder,
     });
 

@@ -9,5 +9,10 @@ router.get("/my-orders", isAuth, orderController.fetchUserOrders);
 router.get("/order-history", isAuth, orderController.fetchOrderHistory);
 router.get("/:orderId", isAuth, orderController.fetchOrderById);
 router.put("/make-payment/:orderId", isAuth, orderController.makePayment);
+router.put(
+  "/update-order-status/:orderId",
+  isAuth,
+  orderController.updateOrderStatus
+);
 
 module.exports = router;

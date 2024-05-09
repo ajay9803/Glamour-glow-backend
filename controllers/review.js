@@ -16,7 +16,7 @@ exports.postReview = async (req, res, next) => {
     }
 
     product.rating = ((product.rating + rating) / 2).toFixed(1);
-    // product.totalReviews = product.totalReviews + 1;
+    product.totalReviews = product.totalReviews + 1;
 
     const theProduct = await product.save();
 
@@ -42,40 +42,46 @@ exports.postReview = async (req, res, next) => {
 };
 
 exports.fetchReviews = async (req, res, next) => {
-  console.log("fetch reviews");
   try {
     const { productId } = req.params;
-    console.log(productId);
+    const { page, sortBy } = req.query;
+    const perPage = 5;
+    console.log(sortBy);
 
-    let reviews = await Review.find({ productId: productId });
+    const totalReviews = await Review.countDocuments({ productId: productId });
 
-    if (!reviews || reviews.length === 0) {
-      const error = new Error("No reviews found.");
-      error.statusCode = 404;
-      throw error;
+    let sortOptions = {};
+
+    switch (sortBy) {
+      case "recent":
+        sortOptions.createdAt = -1;
+        break;
+      case "highest":
+        sortOptions.rating = -1;
+        break;
+      case "lowest":
+        sortOptions.rating = 1;
+        break;
+      default:
+        sortOptions.createdAt = -1;
+        break;
     }
 
-    let theReviews = [];
+    let reviews = await Review.find({ productId: productId })
+      .sort(sortOptions)
+      .skip((page - 1) * perPage)
+      .limit(perPage)
+      .populate("userId");
 
-    await Promise.all(
-      reviews.map(async (review) => {
-        const user = await User.findById(review.userId);
+    if (!reviews || reviews.length === 0) {
+      return res.status(404).json({ message: "No reviews found." });
+    }
 
-        if (!user) {
-          const theError = new Error("Failed to fetch user.");
-          theError.statusCode = 404;
-          throw theError;
-        }
-        theReviews.push({
-          review: review,
-          user: user,
-        });
-      })
-    );
-
-    res
-      .status(200)
-      .json({ message: "Reviews fetched successfully.", reviews: theReviews });
+    res.status(200).json({
+      message: "Reviews fetched successfully.",
+      totalReviews: totalReviews,
+      reviews: reviews,
+    });
   } catch (e) {
     if (!e.statusCode) {
       e.statusCode = 500;

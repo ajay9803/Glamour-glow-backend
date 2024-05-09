@@ -3,6 +3,12 @@ const userValidationSchema = require("../validators/user_validator");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const path = require("path");
+const nodemailer = require("nodemailer");
+const user = require("../models/user");
+require("dotenv").config(".env");
+const userEmail = process.env.USER_EMAIL;
+const userEmailPass = process.env.USER_EMAIL_PASS;
+const jwtTokenSecret = process.env.JWT_TOKEN_SECRET;
 
 exports.signUp = async (req, res, next) => {
   try {
@@ -51,7 +57,7 @@ exports.signUp = async (req, res, next) => {
                 userId: theUser._id.toString(),
                 status: theUser.status,
               },
-              "rino9803",
+              jwtTokenSecret,
               {
                 // expiresIn: "1h",
               }
@@ -99,7 +105,7 @@ exports.login = async (req, res, next) => {
           userId: user._id.toString(),
           status: user.status,
         },
-        "rino9803",
+        jwtTokenSecret,
         {
           // expiresIn: "1h",
         }
@@ -114,4 +120,93 @@ exports.login = async (req, res, next) => {
     }
     next(e);
   }
+};
+
+exports.initiateResetPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      const error = new Error("User not found.");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const resetToken = await jwt.sign(
+      {
+        email: user.email,
+        userId: user._id.toString(),
+        status: user.status,
+      },
+      jwtTokenSecret,
+      {
+        expiresIn: "5m",
+      }
+    );
+
+    await sendResetEmail(email, resetToken);
+
+    res.status(200).json({ message: "Reset email sent successfully." });
+  } catch (e) {
+    if (!e.statusCode) {
+      e.statusCode = 500;
+    }
+    next(e);
+  }
+};
+
+exports.resetPassword = async (req, res, next) => {
+  console.log(req.body);
+  try {
+    const userId = req.userId;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      const error = new Error("User not found");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const { newPassword } = req.body;
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    user.password = hashedPassword;
+    await user.save();
+
+    res.status(200).json({ message: "Password changed successfully." });
+  } catch (e) {
+    if (!e.statusCode) {
+      e.statusCode = 500;
+    }
+    next(e);
+  }
+};
+
+const sendResetEmail = async (email, token) => {
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    host: "smtp.gmail.com",
+    port: 587,
+    auth: {
+      user: userEmail,
+      pass: userEmailPass,
+    },
+  });
+  const resetLink = `http://localhost:3000/reset-password?token=${token}`;
+
+  const mailOptions = {
+    from: {
+      name: "Glamour Glow Cosmetic",
+      email: userEmail,
+    },
+    to: email,
+    subject: "Password Reset",
+    html: `<p>Hello User,</p><p>To reset your password, click on the following link: <a href="${resetLink}">${resetLink}</a></p><p>From Glamour Glow Cosmetic</p>`,
+  };
+
+  return transporter.sendMail(mailOptions);
 };

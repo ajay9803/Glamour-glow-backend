@@ -35,6 +35,10 @@ const beautyProductSchema = new Schema(
       type: [String],
       default: [],
     },
+    totalReviews: {
+      type: Number,
+      default: 0,
+    }
   },
   { timestamps: true }
 );

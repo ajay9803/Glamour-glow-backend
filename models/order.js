@@ -68,6 +68,52 @@ const orderSchema = new Schema(
       type: Boolean,
       required: true,
     },
+    status: {
+      type: Number,
+      required: true,
+    },
+    statusDetails: {
+      paymentMade: {
+        date: {
+          type: Date,
+          default: Date.now,
+        },
+        value: {
+          type: Boolean,
+          default: false,
+        },
+      },
+      processing: {
+        date: {
+          type: Date,
+          default: Date.now,
+        },
+        value: {
+          type: Boolean,
+          default: false,
+        },
+      },
+      shipped: {
+        date: {
+          type: Date,
+          default: Date.now,
+        },
+        value: {
+          type: Boolean,
+          default: false,
+        },
+      },
+      delivered: {
+        date: {
+          type: Date,
+          default: Date.now,
+        },
+        value: {
+          type: Boolean,
+          default: false,
+        },
+      },
+    },
   },
   {
     timestamps: true,
@@ -75,3 +121,12 @@ const orderSchema = new Schema(
 );
 
 module.exports = mongoose.model("Order", orderSchema);
+
+const OrderStatus = {
+  CANCELLED: -1,
+  PLACED: 0,
+  PAYMENT_MADE: 1,
+  PROCESSING: 2,
+  SHIPPED: 3,
+  DELIVERED: 4,
+};

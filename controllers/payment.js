@@ -68,13 +68,18 @@ exports.fetchUserPayments = async (req, res, next) => {
     }
 
     if (date) {
-      const startOfDay = new Date(date);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(date);
-      endOfDay.setHours(23, 59, 59, 999);
+      const theDate = new Date(date);
+
+      const year = theDate.getFullYear();
+      const month = (theDate.getMonth() + 1).toString().padStart(2, "0");
+      const day = (theDate.getDate() - 1).toString().padStart(2, "0");
+
+      const formattedDate = `${year}-${month}-${day}`;
+      console.log(formattedDate);
+
       filterOptions.createdAt = {
-        $gte: startOfDay,
-        $lte: endOfDay,
+        $gte: new Date(`${formattedDate}T00:00:00.000Z`),
+        $lt: new Date(`${formattedDate}T23:59:59.999Z`),
       };
     }
 
@@ -82,11 +87,12 @@ exports.fetchUserPayments = async (req, res, next) => {
 
     let totalItems = await Payment.find({
       userId: userId,
+      ...filterOptions,
     }).countDocuments();
 
     const payments = await Payment.find({
       userId: userId,
-      //  ...filterOptions
+      ...filterOptions,
     })
       .sort(sortOptions)
       .skip((currentPage - 1) * perPage)

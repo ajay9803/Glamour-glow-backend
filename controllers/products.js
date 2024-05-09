@@ -243,12 +243,10 @@ exports.updateProduct = async (req, res, next) => {
     images = product.images;
 
     if (req.files) {
-      console.log(req.files);
       let newImages = [];
       req.files.map((image) => {
         newImages.push(path.basename(image.filename));
       });
-      console.log(newImages);
       images = newImages;
     }
 
