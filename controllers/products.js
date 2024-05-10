@@ -102,11 +102,56 @@ exports.getProductsByCategory = async (req, res, next) => {
   }
 };
 
+exports.getAdminProducts = async (req, res, next) => {
+  try {
+    let sortOrder = req.query.filterBy || "dsc";
+    let productName = req.params.productName;
+    console.log(productName);
+
+    if (sortOrder !== "asc" && sortOrder !== "dsc") {
+      const error = new Error("Invalid sortOrder value.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const sortOptions = {};
+    if (sortOrder === "asc") {
+      sortOptions.createdAt = 1;
+    } else {
+      sortOptions.createdAt = -1;
+    }
+
+    let totalCount = await BeautyProduct.find({
+      name: { $regex: productName, $options: "i" },
+    }).countDocuments();
+
+    let products = await BeautyProduct.find({
+      name: { $regex: productName, $options: "i" },
+    }).sort(sortOptions);
+
+    if (!products || products.length === 0) {
+      const error = new Error("No products found.");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    res.status(200).json({
+      message: "Products fetched successfully.",
+      products: products,
+      totalCount: totalCount,
+    });
+  } catch (e) {
+    if (!e.statusCode) {
+      e.statusCode = 500;
+    }
+    next(e);
+  }
+};
+
 exports.getProducts = async (req, res, next) => {
   try {
     let sortOrder = req.query.filterBy || "dsc";
 
-    // Validate sortOrder value (optional)
     if (sortOrder !== "asc" && sortOrder !== "dsc") {
       const error = new Error("Invalid sortOrder value.");
       error.statusCode = 400;
@@ -375,6 +420,29 @@ exports.searchProduct = async (req, res, next) => {
       products: products,
       totalCount: totalCount,
     });
+  } catch (e) {
+    if (!e.statusCode) {
+      e.statusCode = 500;
+    }
+    next(e);
+  }
+};
+
+exports.deleteProduct = async (req, res, next) => {
+  try {
+    const productId = req.params.productId;
+
+    const product = await BeautyProduct.findById(productId);
+
+    if (!product) {
+      const error = new Error("Product not found.");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    await product.deleteOne();
+
+    res.status(200).json({ message: "Product deleted successfully." });
   } catch (e) {
     if (!e.statusCode) {
       e.statusCode = 500;

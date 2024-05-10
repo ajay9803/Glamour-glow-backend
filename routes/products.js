@@ -6,6 +6,10 @@ const productsController = require("../controllers/products.js");
 
 const router = express.Router();
 
+router.get(
+  "/admin/all-products/:productName",
+  productsController.getAdminProducts
+);
 router.get("/all-products", productsController.getProducts);
 router.get("/all-products/:category", productsController.getProductsByCategory);
 router.get("/products-by-search/", productsController.searchProduct);
@@ -25,6 +29,6 @@ router.put(
   productsController.updateProduct
 );
 
-// router.delete("/delete-product/:productId", isAuth, feedsController.deletePost);
+router.delete("/delete-product/:productId", isAuth, productsController.deleteProduct);
 
 module.exports = router;
