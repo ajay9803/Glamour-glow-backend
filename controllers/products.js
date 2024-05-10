@@ -286,12 +286,83 @@ exports.updateProduct = async (req, res, next) => {
 };
 
 exports.searchProduct = async (req, res, next) => {
+  console.log();
   try {
     const productName = req.query.name;
+    const currentPage = req.query.page || 1;
+    const perPage = 12;
+
+    let sortOptions = {};
+
+    const sortOrder = req.query.filterBy || "dsc";
+
+    if (
+      sortOrder !== "asc" &&
+      sortOrder !== "dsc" &&
+      sortOrder !== "price-asc" &&
+      sortOrder !== "price-dsc"
+    ) {
+      const error = new Error("Invalid sortOrder value.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    switch (sortOrder) {
+      case "asc":
+        sortOptions.createdAt = 1;
+        break;
+      case "dsc":
+        sortOptions.createdAt = -1;
+        break;
+      case "price-asc":
+        sortOptions.price = 1;
+        break;
+      case "price-dsc":
+        sortOptions.price = -1;
+        break;
+      default:
+        break;
+    }
+
+    const minPrice = req.query.minPrice ? parseInt(req.query.minPrice) : 0;
+    const maxPrice = req.query.maxPrice ? parseInt(req.query.maxPrice) : 25000;
+
+    const priceRangeCondition = {};
+    priceRangeCondition.$gte = minPrice;
+    priceRangeCondition.$lte = maxPrice;
+
+    let filterCondition = {};
+
+    const instockFilter = req.query.instockFilter || "all";
+    switch (instockFilter) {
+      case "instock":
+        filterCondition.quantityAvailable = { $gt: 0 };
+        break;
+      case "outofstock":
+        filterCondition.quantityAvailable = 0;
+        break;
+      default:
+        break;
+    }
+
+    const totalCount = await BeautyProduct.find({
+      name: { $regex: productName, $options: "i" },
+      ...filterCondition,
+      ...(Object.keys(priceRangeCondition).length > 0 && {
+        price: priceRangeCondition,
+      }),
+    }).countDocuments();
 
     const products = await BeautyProduct.find({
       name: { $regex: productName, $options: "i" },
-    });
+      ...filterCondition,
+      ...(Object.keys(priceRangeCondition).length > 0 && {
+        price: priceRangeCondition,
+      }),
+    })
+      .sort(sortOptions)
+      .skip((currentPage - 1) * perPage)
+      .limit(perPage);
 
     if (!products || products.length === 0) {
       const error = new Error("No products found.");
@@ -302,6 +373,7 @@ exports.searchProduct = async (req, res, next) => {
     res.status(200).json({
       message: "Search products fetched successfully.",
       products: products,
+      totalCount: totalCount,
     });
   } catch (e) {
     if (!e.statusCode) {

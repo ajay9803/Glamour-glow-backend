@@ -8,7 +8,7 @@ const router = express.Router();
 
 router.get("/all-products", productsController.getProducts);
 router.get("/all-products/:category", productsController.getProductsByCategory);
-router.get("/products-by-search", productsController.searchProduct);
+router.get("/products-by-search/", productsController.searchProduct);
 router.post(
   "/add-product",
   isAuth,
