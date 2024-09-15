@@ -12,77 +12,85 @@ const jwtTokenSecret = process.env.JWT_TOKEN_SECRET;
 
 exports.signUp = async (req, res, next) => {
   try {
+    // Check if a file is provided
     if (!req.file) {
       const error = new Error("No file found.");
       error.statusCode = 422;
       throw error;
     }
+
+    // Validate user data
     const { error } = userValidationSchema.validate({
       ...req.body,
       profileImage: path.basename(req.file.filename),
     });
+
     if (error) {
-      const theError = new Error("User validation failed.");
+      // Send only the first validation error message
+      const theError = new Error(
+        error.details[0].message || "User validation failed."
+      );
       theError.statusCode = 422;
-      theError.data = error.details;
       throw theError;
-    } else {
-      const user = await User.findOne({ email: req.body.email });
-      if (user) {
-        const theError = new Error("Email already exists.");
-        theError.statusCode = 409;
-        throw theError;
-      } else {
-        const hashedPass = await bcrypt.hash(req.body.password, 12);
-
-        if (!hashedPass) {
-          const error = new Error("Error while hashing password.");
-          error.statusCode = 500;
-          throw error;
-        }
-        const newUser = new User({
-          username: req.body.username,
-          email: req.body.email,
-          status: req.body.status,
-          password: hashedPass,
-          profileImage: path.basename(req.file.filename),
-        });
-
-        newUser
-          .save()
-          .then(async (theUser) => {
-            const token = jwt.sign(
-              {
-                email: theUser.email,
-                userId: theUser._id.toString(),
-                status: theUser.status,
-              },
-              jwtTokenSecret,
-              {
-                // expiresIn: "1h",
-              }
-            );
-            res.status(201).json({
-              message: "User created successfully.",
-              user: theUser,
-              token: token,
-            });
-          })
-          .catch((e) => {
-            if (!e.statusCode) {
-              e.statusCode = 500;
-            }
-            throw e;
-          });
-      }
     }
+
+    // Check if the email already exists
+    const user = await User.findOne({ email: req.body.email });
+    if (user) {
+      const theError = new Error("Email already exists.");
+      theError.statusCode = 409;
+      throw theError;
+    }
+
+    // Hash the password
+    const hashedPass = await bcrypt.hash(req.body.password, 12);
+    if (!hashedPass) {
+      const error = new Error("Error while hashing password.");
+      error.statusCode = 500;
+      throw error;
+    }
+
+    // Create and save the new user
+    const newUser = new User({
+      username: req.body.username,
+      email: req.body.email,
+      status: req.body.status,
+      password: hashedPass,
+      profileImage: path.basename(req.file.filename),
+    });
+
+    const createdUser = await newUser.save();
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        email: createdUser.email,
+        userId: createdUser._id.toString(),
+        status: createdUser.status,
+      },
+      jwtTokenSecret,
+      {
+        // expiresIn: "1h",
+      }
+    );
+
+    res.status(201).json({
+      message: "User created successfully.",
+      user: createdUser,
+      token: token,
+    });
   } catch (e) {
+    // Set status code if not defined and send error response
     if (!e.statusCode) {
       e.statusCode = 500;
     }
+    res.status(e.statusCode).json({
+      message: e.message,
+    });
     next(e);
   }
 };
+
 
 exports.login = async (req, res, next) => {
   try {

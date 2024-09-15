@@ -27,6 +27,10 @@ const beautyProductSchema = new Schema(
       type: Number,
       required: true,
     },
+    skinType: {
+      type: String,
+      default: "NORMAL SKIN",
+    },
     rating: {
       type: Number,
       default: 0,
@@ -38,7 +42,7 @@ const beautyProductSchema = new Schema(
     totalReviews: {
       type: Number,
       default: 0,
-    }
+    },
   },
   { timestamps: true }
 );

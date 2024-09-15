@@ -193,33 +193,39 @@ exports.getProducts = async (req, res, next) => {
 
 exports.createProduct = async (req, res, next) => {
   try {
+    // Check if the user is admin
     if (req.status !== "admin") {
       const error = new Error("Forbidden request.");
       error.statusCode = 403;
       throw error;
     }
+
+    // Check if images are provided
     if (!req.files) {
       const error = new Error("No images found.");
       error.statusCode = 422;
       throw error;
     }
-    let images = [];
-    req.files.map((image) => {
-      images.push(path.basename(image.filename));
-    });
 
+    // Extract image filenames
+    let images = req.files.map((image) => path.basename(image.filename));
+
+    // Validate the product data
     const { error } = beautyProductValidationSchema.validate({
       ...req.body,
       images: images,
     });
 
     if (error) {
-      const theError = new Error("Validation failed.");
+      // Send only the first error message
+      const theError = new Error(
+        error.details[0].message || "Validation failed."
+      );
       theError.statusCode = 422;
-      theError.data = error.details;
       throw theError;
     }
 
+    // Create and save the new product
     const newProduct = new BeautyProduct({
       name: req.body.name,
       brand: req.body.brand,
@@ -229,6 +235,7 @@ exports.createProduct = async (req, res, next) => {
       quantityAvailable: req.body.quantityAvailable,
       rating: req.body.rating || 0,
       images: images || [],
+      skinType: req.body.skinType, // Add skinType
     });
 
     const createdProduct = await newProduct.save();
@@ -241,6 +248,10 @@ exports.createProduct = async (req, res, next) => {
     if (!e.statusCode) {
       e.statusCode = 500;
     }
+    // Send error message in response
+    res.status(e.statusCode).json({
+      message: e.message,
+    });
     next(e);
   }
 };
@@ -443,6 +454,61 @@ exports.deleteProduct = async (req, res, next) => {
     await product.deleteOne();
 
     res.status(200).json({ message: "Product deleted successfully." });
+  } catch (e) {
+    if (!e.statusCode) {
+      e.statusCode = 500;
+    }
+    next(e);
+  }
+};
+
+exports.getProductsBySkintype = async (req, res, next) => {
+  const skinType = req.params.skintype;
+  const currentPage = req.query.page || 1;
+  const perPage = 12;
+  try {
+    const sortOrder = req.query.filterBy || "dsc";
+
+    let sortOptions = {};
+    switch (sortOrder) {
+      case "asc":
+        sortOptions.createdAt = 1;
+        break;
+      case "dsc":
+        sortOptions.createdAt = -1;
+        break;
+      case "price-asc":
+        sortOptions.price = 1;
+        break;
+      case "price-dsc":
+        sortOptions.price = -1;
+        break;
+      default:
+        break;
+    }
+
+    let filterCondition = { skinType: skinType };
+
+    let totalItems = await BeautyProduct.find(filterCondition)
+      .sort(sortOptions)
+      .countDocuments();
+
+    const products = await BeautyProduct.find(filterCondition)
+      .sort(sortOptions)
+      .skip((currentPage - 1) * perPage)
+      .limit(perPage);
+
+    if (!products || totalItems === 0) {
+      const error = new Error("No products found.");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    res.status(200).json({
+      message: "Products fetched successfully.",
+      products: products,
+      totalItems: totalItems,
+    });
   } catch (e) {
     if (!e.statusCode) {
       e.statusCode = 500;
