@@ -208,12 +208,12 @@ const sendResetEmail = async (email, token) => {
 
   const mailOptions = {
     from: {
-      name: "Glamour Glow Cosmetic",
+      name: "Elegant Essentials",
       email: userEmail,
     },
     to: email,
     subject: "Password Reset",
-    html: `<p>Hello User,</p><p>To reset your password, click on the following link: <a href="${resetLink}">${resetLink}</a></p><p>From Glamour Glow Cosmetic</p>`,
+    html: `<p>Hello User,</p><p>To reset your password, click on the following link: <a href="${resetLink}">${resetLink}</a></p><p>From Elegant Essentials</p>`,
   };
 
   return transporter.sendMail(mailOptions);
